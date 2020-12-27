@@ -1,15 +1,36 @@
 {
-  "pluginAlias": "ExampleHomebridgePlugin",
+  "pluginAlias": "SmartDry",
   "pluginType": "platform",
   "singular": true,
   "schema": {
     "type": "object",
     "properties": {
-      "name": {
-        "title": "Name",
+      "apiEndpointUrl": {
         "type": "string",
-        "required": true,
-        "default": "Example Dynamic Platform"
+        "title": "API Endpoint URL for SmartDry",
+        "placeholder": "https://....",
+        "required": true
+      },
+      "sensors": {
+        "type": "array",
+        "items": {
+          "title": "Sensors",
+          "type": "object",
+          "properties": {
+            "id": {
+              "title": "SmartDry ID",
+              "type": "string",
+              "placeholder": "Enter SmartDry ID...",
+              "required": true
+            },
+            "name": {
+              "title": "Name",
+              "type": "string",
+              "placeholder": "Enter name, such as: Samsung Drier",
+              "required": true
+            }
+          }
+        }
       }
     }
   }

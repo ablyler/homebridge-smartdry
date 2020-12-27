@@ -1,16 +1,16 @@
 {
-  "private": true,
-  "displayName": "Plugin Name",
-  "name": "homebridge-plugin-name",
-  "version": "1.0.0",
-  "description": "A short description about what your plugin does.",
+  "private": false,
+  "displayName": "Homebridge SmartDry",
+  "name": "homebridge-smartdry",
+  "version": "1.0.3",
+  "description": "SmartDry plug-in for homebridge",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git://github.com/USERNAME/GITHUB_PROJECT_NAME.git"
+    "url": "git://github.com/ablyler/homebridge-smartdry.git"
   },
   "bugs": {
-    "url": "https://github.com/USERNAME/GITHUB_PROJECT_NAME/issues"
+    "url": "https://github.com/ablyler/homebridge-smartdry/issues"
   },
   "engines": {
     "node": ">=10.17.0",
@@ -26,7 +26,10 @@
   "keywords": [
     "homebridge-plugin"
   ],
-  "dependencies": {},
+  "dependencies": {
+    "axios": "^0.21.1",
+    "interval-loop-manager": "^1.1.1"
+  },
   "devDependencies": {
     "@types/node": "^14.14.6",
     "@typescript-eslint/eslint-plugin": "^4.6.1",

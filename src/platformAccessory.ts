@@ -1,151 +1,104 @@
-import { Service, PlatformAccessory, CharacteristicValue, CharacteristicSetCallback, CharacteristicGetCallback } from 'homebridge';
-
-import { ExampleHomebridgePlatform } from './platform';
+import { Service, PlatformAccessory, CharacteristicEventTypes, CharacteristicValue, CharacteristicSetCallback } from 'homebridge';
+import { SmartDryPlatform } from './platform';
+import { SmartDryApi } from './smartdryapi';
+import IntervalLoopManager = require('interval-loop-manager');
 
 /**
  * Platform Accessory
  * An instance of this class is created for each accessory your platform registers
  * Each accessory may expose multiple services of different service types.
  */
-export class ExamplePlatformAccessory {
+export class SmartDryPlatformAccessory {
   private service: Service;
+  private api: SmartDryApi;
+
+  // Run loop every 60 seconds when drier is running
+  private readonly intervalRunning: number = 60000;
+
+  // Run loop every 5 minutes when drier is stopped
+  private readonly intervalStopped: number = 300000;
 
   /**
-   * These are just used to create a working example
-   * You should implement your own code to track the state of your accessory
+   * These are used to track the state
    */
-  private exampleStates = {
+  private states = {
     On: false,
-    Brightness: 100,
   };
 
   constructor(
-    private readonly platform: ExampleHomebridgePlatform,
+    private readonly platform: SmartDryPlatform,
     private readonly accessory: PlatformAccessory,
   ) {
 
+    this.api = new SmartDryApi(accessory.context.pluginConfig.apiEndpointUrl, accessory.context.device.id, this.platform.log);
+
     // set accessory information
     this.accessory.getService(this.platform.Service.AccessoryInformation)!
-      .setCharacteristic(this.platform.Characteristic.Manufacturer, 'Default-Manufacturer')
-      .setCharacteristic(this.platform.Characteristic.Model, 'Default-Model')
-      .setCharacteristic(this.platform.Characteristic.SerialNumber, 'Default-Serial');
+      .setCharacteristic(this.platform.Characteristic.Manufacturer, 'SmartDry')
+      .setCharacteristic(this.platform.Characteristic.Model, 'Unknown')
+      .setCharacteristic(this.platform.Characteristic.SerialNumber, 'Unknown');
 
-    // get the LightBulb service if it exists, otherwise create a new LightBulb service
-    // you can create multiple services for each accessory
-    this.service = this.accessory.getService(this.platform.Service.Lightbulb) || this.accessory.addService(this.platform.Service.Lightbulb);
+    // get the service if it exists, otherwise create a new service
+    this.service = this.accessory.getService(this.platform.Service.Switch) || this.accessory.addService(this.platform.Service.Switch);
+
+    // default the state to off
+    this.service.updateCharacteristic(this.platform.Characteristic.On, false);
 
     // set the service name, this is what is displayed as the default name on the Home app
     // in this example we are using the name we stored in the `accessory.context` in the `discoverDevices` method.
-    this.service.setCharacteristic(this.platform.Characteristic.Name, accessory.context.device.exampleDisplayName);
+    this.service.setCharacteristic(this.platform.Characteristic.Name, accessory.context.device.name);
 
-    // each service must implement at-minimum the "required characteristics" for the given service type
-    // see https://developers.homebridge.io/#/service/Lightbulb
+    // set the displayName
+    this.service.displayName = accessory.context.device.name;
 
-    // register handlers for the On/Off Characteristic
     this.service.getCharacteristic(this.platform.Characteristic.On)
-      .on('set', this.setOn.bind(this))                // SET - bind to the `setOn` method below
-      .on('get', this.getOn.bind(this));               // GET - bind to the `getOn` method below
+      .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
+        this.states.On = value as boolean;
+        this.platform.log.info(`[${ this.service.displayName }] state was set to: ` + (this.states.On? 'On': 'Off'));
+        this.platform.log.info(`[${ this.service.displayName }] forcing refresh of state in one second due to manual state change`);
+        managedLoop.restart({ interval: 1000 });
+        callback();
+      });
 
-    // register handlers for the Brightness Characteristic
-    this.service.getCharacteristic(this.platform.Characteristic.Brightness)
-      .on('set', this.setBrightness.bind(this));       // SET - bind to the 'setBrightness` method below
+    // update the device state on a timer (will get called right away as well)
+    const managedLoop = new IntervalLoopManager(() => {
+      this.updateState();
 
-
-    /**
-     * Creating multiple services of the same type.
-     * 
-     * To avoid "Cannot add a Service with the same UUID another Service without also defining a unique 'subtype' property." error,
-     * when creating multiple services of the same type, you need to use the following syntax to specify a name and subtype id:
-     * this.accessory.getService('NAME') || this.accessory.addService(this.platform.Service.Lightbulb, 'NAME', 'USER_DEFINED_SUBTYPE_ID');
-     * 
-     * The USER_DEFINED_SUBTYPE must be unique to the platform accessory (if you platform exposes multiple accessories, each accessory
-     * can use the same sub type id.)
-     */
-
-    // Example: add two "motion sensor" services to the accessory
-    const motionSensorOneService = this.accessory.getService('Motion Sensor One Name') ||
-      this.accessory.addService(this.platform.Service.MotionSensor, 'Motion Sensor One Name', 'YourUniqueIdentifier-1');
-
-    const motionSensorTwoService = this.accessory.getService('Motion Sensor Two Name') ||
-      this.accessory.addService(this.platform.Service.MotionSensor, 'Motion Sensor Two Name', 'YourUniqueIdentifier-2');
-
-    /**
-     * Updating characteristics values asynchronously.
-     * 
-     * Example showing how to update the state of a Characteristic asynchronously instead
-     * of using the `on('get')` handlers.
-     * Here we change update the motion sensor trigger states on and off every 10 seconds
-     * the `updateCharacteristic` method.
-     * 
-     */
-    let motionDetected = false;
-    setInterval(() => {
-      // EXAMPLE - inverse the trigger
-      motionDetected = !motionDetected;
-
-      // push the new value to HomeKit
-      motionSensorOneService.updateCharacteristic(this.platform.Characteristic.MotionDetected, motionDetected);
-      motionSensorTwoService.updateCharacteristic(this.platform.Characteristic.MotionDetected, !motionDetected);
-
-      this.platform.log.debug('Triggering motionSensorOneService:', motionDetected);
-      this.platform.log.debug('Triggering motionSensorTwoService:', !motionDetected);
-    }, 10000);
+      if (this.states.On) {
+        managedLoop.assignValues({ interval: this.intervalRunning });
+      } else {
+        managedLoop.assignValues({ interval: this.intervalStopped });
+      }
+    });
+    managedLoop.start({ interval: this.intervalRunning });
   }
 
-  /**
-   * Handle "SET" requests from HomeKit
-   * These are sent when the user changes the state of an accessory, for example, turning on a Light bulb.
-   */
-  setOn(value: CharacteristicValue, callback: CharacteristicSetCallback) {
+  private updateState() {
+    this.platform.log.debug(`[${ this.service.displayName }] Updating State`);
 
-    // implement your own code to turn your device on/off
-    this.exampleStates.On = value as boolean;
+    this.api.getDeviceState()
+      .then((state) => {
+        this.platform.log.debug(`[${ this.service.displayName }] state from api: ${ JSON.stringify(state) }`);
 
-    this.platform.log.debug('Set Characteristic On ->', value);
+        // push the new value to HomeKit
+        if (state.loadStart > BigInt(0)) {
+          if (!this.states.On) {
+            this.platform.log.info(`[${ this.service.displayName }] Setting state to: On`);
+          }
+          this.service.updateCharacteristic(this.platform.Characteristic.On, true);
+          this.states.On = true;
+        } else {
+          if (this.states.On) {
+            this.platform.log.info(`[${ this.service.displayName }] Setting state to: Off`);
+          }
+          this.service.updateCharacteristic(this.platform.Characteristic.On, false);
+          this.states.On = false;
+        }
 
-    // you must call the callback function
-    callback(null);
+        this.platform.log.debug(`[${ this.service.displayName }] State Update Complete`);
+      })
+      .catch((err) => {
+        this.platform.log.error('Unable to load state from SmartDry API: ', err.message);
+      });
   }
-
-  /**
-   * Handle the "GET" requests from HomeKit
-   * These are sent when HomeKit wants to know the current state of the accessory, for example, checking if a Light bulb is on.
-   * 
-   * GET requests should return as fast as possbile. A long delay here will result in
-   * HomeKit being unresponsive and a bad user experience in general.
-   * 
-   * If your device takes time to respond you should update the status of your device
-   * asynchronously instead using the `updateCharacteristic` method instead.
-
-   * @example
-   * this.service.updateCharacteristic(this.platform.Characteristic.On, true)
-   */
-  getOn(callback: CharacteristicGetCallback) {
-
-    // implement your own code to check if the device is on
-    const isOn = this.exampleStates.On;
-
-    this.platform.log.debug('Get Characteristic On ->', isOn);
-
-    // you must call the callback function
-    // the first argument should be null if there were no errors
-    // the second argument should be the value to return
-    callback(null, isOn);
-  }
-
-  /**
-   * Handle "SET" requests from HomeKit
-   * These are sent when the user changes the state of an accessory, for example, changing the Brightness
-   */
-  setBrightness(value: CharacteristicValue, callback: CharacteristicSetCallback) {
-
-    // implement your own code to set the brightness
-    this.exampleStates.Brightness = value as number;
-
-    this.platform.log.debug('Set Characteristic Brightness -> ', value);
-
-    // you must call the callback function
-    callback(null);
-  }
-
 }
