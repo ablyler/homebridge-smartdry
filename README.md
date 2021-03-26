@@ -32,6 +32,7 @@ Configuration sample (edit `~/.homebridge/config.json`):
 Required fields:
 
 * `"id"`: The ID of your SmartDry device. You can find this in the settings of the SmartDry iOS App.
+* `"name"`: The name you should like to give your device, such as Drier.
 
 # HomeKit Accessory Types
 
