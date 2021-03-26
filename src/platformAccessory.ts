@@ -12,6 +12,9 @@ export class SmartDryPlatformAccessory {
   private service: Service;
   private api: SmartDryApi;
 
+  // API Endpoint URL
+  private readonly apiEndpointUrl: string = 'https://qn54iu63v9.execute-api.us-east-1.amazonaws.com/prod/RDSQuery';
+
   // Run loop every 60 seconds when drier is running
   private readonly intervalRunning: number = 60000;
 
@@ -30,7 +33,7 @@ export class SmartDryPlatformAccessory {
     private readonly accessory: PlatformAccessory,
   ) {
 
-    this.api = new SmartDryApi(accessory.context.pluginConfig.apiEndpointUrl, accessory.context.device.id, this.platform.log);
+    this.api = new SmartDryApi(this.apiEndpointUrl, accessory.context.device.id, this.platform.log);
 
     // set accessory information
     this.accessory.getService(this.platform.Service.AccessoryInformation)!

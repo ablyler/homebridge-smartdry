@@ -5,12 +5,6 @@
   "schema": {
     "type": "object",
     "properties": {
-      "apiEndpointUrl": {
-        "type": "string",
-        "title": "API Endpoint URL for SmartDry",
-        "placeholder": "https://....",
-        "required": true
-      },
       "sensors": {
         "type": "array",
         "items": {
