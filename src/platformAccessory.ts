@@ -11,6 +11,10 @@ import IntervalLoopManager = require('interval-loop-manager');
 export class SmartDryPlatformAccessory {
   private service: Service;
   private api: SmartDryApi;
+  private serviceType;
+  private serviceCharacteristic;
+  private serviceCharacteristicOffValue;
+  private serviceCharacteristicOnValue;
 
   // API Endpoint URL
   private readonly apiEndpointUrl: string = 'https://qn54iu63v9.execute-api.us-east-1.amazonaws.com/prod/RDSQuery';
@@ -41,11 +45,25 @@ export class SmartDryPlatformAccessory {
       .setCharacteristic(this.platform.Characteristic.Model, 'Unknown')
       .setCharacteristic(this.platform.Characteristic.SerialNumber, 'Unknown');
 
+    if (accessory.context.device.serviceType === 'contactSensor') {
+      this.platform.log.info('Setting service type to: ContactSensor');
+      this.serviceType = this.platform.Service.ContactSensor;
+      this.serviceCharacteristic = this.platform.Characteristic.ContactSensorState;
+      this.serviceCharacteristicOffValue = this.platform.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED;
+      this.serviceCharacteristicOnValue = this.platform.Characteristic.ContactSensorState.CONTACT_DETECTED;
+    } else {
+      this.platform.log.info('Setting service type to: Switch');
+      this.serviceType = this.platform.Service.Switch;
+      this.serviceCharacteristic = this.platform.Characteristic.On;
+      this.serviceCharacteristicOffValue = false;
+      this.serviceCharacteristicOnValue = true;
+    }
+
     // get the service if it exists, otherwise create a new service
-    this.service = this.accessory.getService(this.platform.Service.Switch) || this.accessory.addService(this.platform.Service.Switch);
+    this.service = this.accessory.getService(this.serviceType) || this.accessory.addService(this.serviceType);
 
     // default the state to off
-    this.service.updateCharacteristic(this.platform.Characteristic.On, false);
+    this.service.updateCharacteristic(this.serviceCharacteristic, this.serviceCharacteristicOffValue);
 
     // set the service name, this is what is displayed as the default name on the Home app
     // in this example we are using the name we stored in the `accessory.context` in the `discoverDevices` method.
@@ -54,7 +72,7 @@ export class SmartDryPlatformAccessory {
     // set the displayName
     this.service.displayName = accessory.context.device.name;
 
-    this.service.getCharacteristic(this.platform.Characteristic.On)
+    this.service.getCharacteristic(this.serviceCharacteristic)
       .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
         this.states.On = value as boolean;
         this.platform.log.info(`[${ this.service.displayName }] state was set to: ` + (this.states.On? 'On': 'Off'));
@@ -88,13 +106,13 @@ export class SmartDryPlatformAccessory {
           if (!this.states.On) {
             this.platform.log.info(`[${ this.service.displayName }] Setting state to: On`);
           }
-          this.service.updateCharacteristic(this.platform.Characteristic.On, true);
+          this.service.updateCharacteristic(this.serviceCharacteristic, this.serviceCharacteristicOnValue);
           this.states.On = true;
         } else {
           if (this.states.On) {
             this.platform.log.info(`[${ this.service.displayName }] Setting state to: Off`);
           }
-          this.service.updateCharacteristic(this.platform.Characteristic.On, false);
+          this.service.updateCharacteristic(this.serviceCharacteristic, this.serviceCharacteristicOffValue);
           this.states.On = false;
         }
 

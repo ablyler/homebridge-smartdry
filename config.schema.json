@@ -22,6 +22,26 @@
               "type": "string",
               "placeholder": "Enter name, such as: Samsung Drier",
               "required": true
+            },
+            "serviceType": {
+              "title": "Type of Homekit Service",
+              "type": "string",
+              "required": true,
+              "default": "switch",
+              "oneOf": [
+                {
+                  "title": "Switch",
+                  "enum": [
+                    "switch"
+                  ]
+                },
+                {
+                  "title": "Contact Sensor",
+                  "enum": [
+                    "contactSensor"
+                  ]
+                }
+              ]
             }
           }
         }
