@@ -40,7 +40,7 @@ Required fields:
 
 ## Drier
 
-* *Switch* accessory indicating drier Running/Stopped state
+* *Switch* or *Contact Sensor* accessory indicating drier Running/Stopped state
 
 # Things to try with Siri
 
