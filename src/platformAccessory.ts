@@ -52,7 +52,9 @@ export class SmartDryPlatformAccessory implements AccessoryPlugin {
     // Update the device state on a timer (will get called right away as well)
     this.managedLoop = new IntervalLoopManager(() => {
       this.updateState();
-      this.managedLoop.assignValues({ interval: this.getLoopInterval() });
+      // HACK to fix issue https://github.com/ablyler/homebridge-smartdry/issues/5
+      // calling this function within the callback causes a crash
+      // this.managedLoop.assignValues({ interval: this.getLoopInterval() });
     }).start({ interval: SmartDryConstants.INTERVAL_RUNNING_MS });
   }
 
