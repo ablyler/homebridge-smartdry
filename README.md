@@ -2,46 +2,43 @@
 
 SmartDry plug-in for [Homebridge](https://github.com/nfarina/homebridge) using the undocumented SmartDry API.
 
-Currently, homebridge-smartdry exposes the drier sensor as a switch that shows if the drier is running or stopped.
+`homebridge-smartdry` exposes the dryer sensor as a either `switch` or `contact sensor` that shows if the dryer is running or stopped.
+## Installation
 
-# Installation
+Before installing this plugin, you should install Homebridge using the [official instructions](https://github.com/homebridge/homebridge/wiki).
 
-<!-- 2. Clone (or pull) this repository from github into the same path Homebridge lives (usually `/usr/local/lib/node_modules`). Note: the code currently on GitHub is in beta, and is newer than the latest published version of this package on `npm` -->
-1. Install homebridge using: `npm install -g homebridge`
+### Install via Homebridge Config UI X
+1. Search for `Homebridge SmartDry` on the Plugins tab of [Config UI X](https://www.npmjs.com/package/homebridge-config-ui-x).
+2. Install the `Homebridge SmartDry` plugin and use the form to enter your configuration.
+
+### Manual Installation
 2. Install this plug-in using: `npm install -g homebridge-smartdry`
 3. Update your configuration file. See example `config.json` snippet below.
 
-# Configuration
+## Configuration
 
 Configuration sample (edit `~/.homebridge/config.json`):
 
-```
-"platforms": [
-        {
-            "platform": "SmartDry",
-            "sensors": [
-                {
-                    "id": "XXXXXX",
-                    "name": "Drier",
-                    "serviceType": "contactSensor"
-                }
-            ]
-        }
-    ],
+```json
+{
+  "platform": "SmartDry",
+  "name": "Homebridge SmartDry",
+  "sensors": [
+    {
+      "id": "XXXXXX",
+      "name": "Samsung Dryer",
+      "serviceType": "contactSensor"
+    }
+  ]
+}
 ```
 
 Required fields:
 
 * `"id"`: The ID of your SmartDry device. You can find this in the settings of the SmartDry iOS App.
-* `"name"`: The name you should like to give your device, such as Drier.
-* `"serviceType"`: The service type to expose the device as, either contactSensor or switch (default).
+* `"name"`: The name you should like to give your device, such as Samsung Dryer.
+* `"serviceType"`: The service type to expose the device as, either `contactSensor` or `switch` (default).
 
-# HomeKit Accessory Types
+## Things to try with Siri
 
-## Drier
-
-* *Switch* or *Contact Sensor* accessory indicating drier Running/Stopped state
-
-# Things to try with Siri
-
-* Hey Siri, *is the Drier on*?
+* Hey Siri, *is the Samsung Dryer on*?

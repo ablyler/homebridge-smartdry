@@ -1,125 +1,49 @@
-import { API, DynamicPlatformPlugin, Logger, PlatformAccessory, PlatformConfig, Service, Characteristic } from 'homebridge';
-
-import { PLATFORM_NAME, PLUGIN_NAME } from './settings';
+import { AccessoryPlugin, API, Characteristic, Logger, PlatformConfig, Service, StaticPlatformPlugin } from 'homebridge';
 import { SmartDryPlatformAccessory } from './platformAccessory';
+import { SmartDryApi } from './smartDryApi';
+import { UserSettings } from './userSettings';
 
-import { readFileSync } from 'fs';
+export class SmartDryPlatform implements StaticPlatformPlugin {
 
-/**
- * HomebridgePlatform
- * This class is the main constructor for your plugin, this is where you should
- * parse the user config and discover/register accessories with Homebridge.
- */
-export class SmartDryPlatform implements DynamicPlatformPlugin {
+  private readonly smartDryPlatformAccessories: SmartDryPlatformAccessory[] = [];
+  private readonly userSettings: UserSettings;
+
   public readonly Service: typeof Service = this.api.hap.Service;
   public readonly Characteristic: typeof Characteristic = this.api.hap.Characteristic;
-
-  // this is used to track restored cached accessories
-  public readonly accessories: PlatformAccessory[] = [];
+  public readonly SmartDryApi: SmartDryApi;
 
   constructor(
     public readonly log: Logger,
     public readonly config: PlatformConfig,
     public readonly api: API,
   ) {
-    this.log.debug('Finished initializing platform:', PLATFORM_NAME);
+    this.userSettings = new UserSettings(this);
+    this.SmartDryApi = new SmartDryApi(this.log);
 
-    // When this event is fired it means Homebridge has restored all cached accessories from disk.
-    // Dynamic Platform plugins should only register new accessories after this event was fired,
-    // in order to ensure they weren't added to homebridge already. This event can also be used
-    // to start discovery of new accessories.
-    this.api.on('didFinishLaunching', () => {
-      log.debug('Executed didFinishLaunching callback');
-      // run the method to discover / register your devices as accessories
-      this.discoverDevices();
-    });
-  }
-
-  /**
-   * This function is invoked when homebridge restores cached accessories from disk at startup.
-   * It should be used to setup event handlers for characteristics and update respective values.
-   */
-  configureAccessory(accessory: PlatformAccessory) {
-    this.log.info('Loading accessory from cache:', accessory.displayName);
-
-    // add the restored accessory to the accessories cache so we can track if it has already been registered
-    this.accessories.push(accessory);
-  }
-
-  /**
-   * This is an example method showing how to register discovered accessories.
-   * Accessories must only be registered once, previously created accessories
-   * must not be registered again to prevent "duplicate UUID" errors.
-   */
-  discoverDevices() {
-    // load in the current config
-    const currentConfig = JSON.parse(readFileSync(this.api.user.configPath(), 'utf8'));
-
-    // check the platforms section is an array before we do array things on it
-    if (!Array.isArray(currentConfig.platforms)) {
-      throw new Error('Cannot find platforms array in config');
+    if (this.userSettings.SmartDrySensorConfigs.length === 0) {
+      this.log.error('No Smart Dry sensors specified. Platform is not loading.');
+      return;
     }
 
-    // find this plugins current config
-    const pluginConfig = currentConfig.platforms.find((x: { platform: string }) => x.platform === PLATFORM_NAME);
+    this.buildAccessories();
 
-    if (!pluginConfig) {
-      throw new Error(`Cannot find config for ${PLATFORM_NAME} in platforms array`);
-    }
+    this.log.debug(`Platform ${this.userSettings.PluginName} -> Initialized`);
+  }
 
-    // loop over the discovered devices and register each one if it has not already been registered
-    for (const device of pluginConfig.sensors) {
+  async accessories(callback: (foundAccessories: AccessoryPlugin[]) => void): Promise<void> {
+    callback(this.smartDryPlatformAccessories);
+  }
 
-      // generate a unique id for the accessory this should be generated from
-      // something globally unique, but constant, for example, the device serial
-      // number or MAC address
-      const uuid = this.api.hap.uuid.generate(device.id);
+  private buildAccessories() {
 
-      // see if an accessory with the same uuid has already been registered and restored from
-      // the cached devices we stored in the `configureAccessory` method above
-      const existingAccessory = this.accessories.find(accessory => accessory.UUID === uuid);
+    for (const smartDrySensorConfig of this.userSettings.SmartDrySensorConfigs) {
 
-      if (existingAccessory) {
-        // the accessory already exists
-        if (device) {
-          this.log.info('Restoring existing accessory from cache:', existingAccessory.displayName);
+      const smartDryPlatformAccessory = new SmartDryPlatformAccessory(this,
+        smartDrySensorConfig.name, smartDrySensorConfig.id, smartDrySensorConfig.serviceType);
 
-          // if you need to update the accessory.context then you should run `api.updatePlatformAccessories`. eg.:
-          existingAccessory.context.device = device;
-          existingAccessory.context.pluginConfig = pluginConfig;
-          this.api.updatePlatformAccessories([existingAccessory]);
+      this.log.debug(`Including accessory=${smartDryPlatformAccessory.name}`);
 
-          // create the accessory handler for the restored accessory
-          // this is imported from `platformAccessory.ts`
-          new SmartDryPlatformAccessory(this, existingAccessory);
-          
-          // update accessory cache with any changes to the accessory details and information
-          this.api.updatePlatformAccessories([existingAccessory]);
-        } else if (!device) {
-          // it is possible to remove platform accessories at any time using `api.unregisterPlatformAccessories`, eg.:
-          // remove platform accessories when no longer present
-          this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [existingAccessory]);
-          this.log.info('Removing existing accessory from cache:', existingAccessory.displayName);
-        }
-      } else {
-        // the accessory does not yet exist, so we need to create it
-        this.log.info('Adding new accessory:', device.name);
-
-        // create a new accessory
-        const accessory = new this.api.platformAccessory(device.name, uuid);
-
-        // store a copy of the device object in the `accessory.context`
-        // the `context` property can be used to store any data about the accessory you may need
-        accessory.context.device = device;
-        accessory.context.pluginConfig = pluginConfig;
-
-        // create the accessory handler for the newly create accessory
-        // this is imported from `platformAccessory.ts`
-        new SmartDryPlatformAccessory(this, accessory);
-
-        // link the accessory to your platform
-        this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
-      }
+      this.smartDryPlatformAccessories.push(smartDryPlatformAccessory);
     }
   }
 }
