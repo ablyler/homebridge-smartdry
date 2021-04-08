@@ -52,10 +52,13 @@ export class SmartDryPlatformAccessory implements AccessoryPlugin {
     // Update the device state on a timer (will get called right away as well)
     this.managedLoop = new IntervalLoopManager(() => {
       this.updateState();
-      // HACK to fix issue https://github.com/ablyler/homebridge-smartdry/issues/5
-      // calling this function within the callback causes a crash
-      // this.managedLoop.assignValues({ interval: this.getLoopInterval() });
-    }).start({ interval: SmartDryConstants.INTERVAL_RUNNING_MS });
+
+      const loopInterval = this.getLoopInterval();
+      this.managedLoop.assignValues({ interval: loopInterval });
+      this.platform.log.debug(`Updating [${this.name}] loop interval to ${loopInterval}ms.`);
+    });
+
+    this.managedLoop.start({ interval: SmartDryConstants.INTERVAL_RUNNING_MS });
   }
 
   private getLoopInterval(): number {
@@ -67,8 +70,13 @@ export class SmartDryPlatformAccessory implements AccessoryPlugin {
     this.platform.log.debug(`[${ this.name }] Updating State`);
 
     await this.platform.SmartDryApi.getDeviceState(this.id).then(deviceState => {
-      this.platform.log.debug(`[${ this.name }] state from api: ${ JSON.stringify(deviceState) }`);
-      if (deviceState.loadStart > BigInt(0)) {
+      if (deviceState === undefined) {
+        this.platform.log.error('Unable to load state from SmartDry API: Unable to parse response');
+        return;
+      }
+
+      this.platform.log.debug(`[${this.name}] state from api: ${JSON.stringify(deviceState)}`);
+      if ((deviceState.loadStart || 0) > BigInt(0)) {
         this.isOn = !this.isOn;
         this.platform.log.info(`Set [${this.name}] state ->`, this.isOn);
 
@@ -77,10 +85,15 @@ export class SmartDryPlatformAccessory implements AccessoryPlugin {
           .updateValue(this.isOn);
       }
 
-      this.platform.log.debug(`[${ this.name }] State Update Complete`);
+      this.platform.log.debug(`[${this.name}] State Update Complete`);
     }).catch(err => {
       this.platform.log.error('Unable to load state from SmartDry API: ', err.message);
     });
+
+    // const loopInterval = this.getLoopInterval();
+    // this.managedLoop.assignValues({ interval: this.getLoopInterval() });
+    // this.managedLoop.
+    // this.platform.log.debug(`[${this.name}] loop interval set to ${this.managedLoop.}ms`);
   }
 
   private async setOn(value: CharacteristicValue): Promise<void> {
