@@ -5,6 +5,13 @@
   "schema": {
     "type": "object",
     "properties": {
+      "name": {
+        "title": "Platform Name",
+        "type": "string",
+        "default": "Homebridge SmartDry",
+        "description": "This is the name that will be used for all logs pertaining to this platform.",
+        "required": true
+      },
       "sensors": {
         "type": "array",
         "items": {
@@ -14,13 +21,11 @@
             "id": {
               "title": "SmartDry ID",
               "type": "string",
-              "placeholder": "Enter SmartDry ID...",
               "required": true
             },
             "name": {
               "title": "Name",
               "type": "string",
-              "placeholder": "Enter name, such as: Samsung Drier",
               "required": true
             },
             "serviceType": {

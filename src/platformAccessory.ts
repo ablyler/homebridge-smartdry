@@ -1,6 +1,6 @@
-import { Service, PlatformAccessory, CharacteristicEventTypes, CharacteristicValue, CharacteristicSetCallback } from 'homebridge';
+import { AccessoryPlugin, CharacteristicValue, Service } from 'homebridge';
 import { SmartDryPlatform } from './platform';
-import { SmartDryApi } from './smartdryapi';
+import { SmartDryConstants } from './smartDryConstants';
 import IntervalLoopManager = require('interval-loop-manager');
 
 /**
@@ -8,118 +8,105 @@ import IntervalLoopManager = require('interval-loop-manager');
  * An instance of this class is created for each accessory your platform registers
  * Each accessory may expose multiple services of different service types.
  */
-export class SmartDryPlatformAccessory {
-  private service: Service;
-  private api: SmartDryApi;
-  private serviceType;
-  private serviceCharacteristic;
-  private serviceCharacteristicOffValue;
-  private serviceCharacteristicOnValue;
+export class SmartDryPlatformAccessory implements AccessoryPlugin {
 
-  // API Endpoint URL
-  private readonly apiEndpointUrl: string = 'https://qn54iu63v9.execute-api.us-east-1.amazonaws.com/prod/RDSQuery';
-
-  // Run loop every 60 seconds when drier is running
-  private readonly intervalRunning: number = 60000;
-
-  // Run loop every 5 minutes when drier is stopped
-  private readonly intervalStopped: number = 300000;
-
-  /**
-   * These are used to track the state
-   */
-  private states = {
-    On: false,
-  };
+  private managedLoop: IntervalLoopManager;
+  private informationService: Service;
+  private binaryService: Service;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private binaryCharacteristic: any;
+  private isOn: boolean | undefined;
 
   constructor(
     private readonly platform: SmartDryPlatform,
-    private readonly accessory: PlatformAccessory,
+    public name: string,
+    public id: string,
+    public serviceType: string,
   ) {
 
-    this.api = new SmartDryApi(this.apiEndpointUrl, accessory.context.device.id, this.platform.log);
-
     // set accessory information
-    this.accessory.getService(this.platform.Service.AccessoryInformation)!
-      .setCharacteristic(this.platform.Characteristic.Manufacturer, 'SmartDry')
-      .setCharacteristic(this.platform.Characteristic.Model, 'Unknown')
-      .setCharacteristic(this.platform.Characteristic.SerialNumber, 'Unknown');
+    this.informationService = new this.platform.Service.AccessoryInformation()
+      .setCharacteristic(this.platform.Characteristic.Manufacturer, SmartDryConstants.INFORMATION_MANUFACTURER)
+      .setCharacteristic(this.platform.Characteristic.Model, SmartDryConstants.INFORMATION_MODEL)
+      .setCharacteristic(this.platform.Characteristic.SerialNumber, id);
 
-    if (accessory.context.device.serviceType === 'contactSensor') {
-      this.platform.log.info('Setting service type to: ContactSensor');
-      this.serviceType = this.platform.Service.ContactSensor;
-      this.serviceCharacteristic = this.platform.Characteristic.ContactSensorState;
-      this.serviceCharacteristicOffValue = this.platform.Characteristic.ContactSensorState.CONTACT_NOT_DETECTED;
-      this.serviceCharacteristicOnValue = this.platform.Characteristic.ContactSensorState.CONTACT_DETECTED;
+    if (serviceType === SmartDryConstants.SERVICE_TYPE_CONTACT_SENSOR) {
+      this.binaryService = new platform.Service.ContactSensor(this.name);
+      this.binaryCharacteristic = this.platform.Characteristic.ContactSensorState;
+
+      // register handlers for the characteristics
+      this.binaryService
+        .getCharacteristic(this.binaryCharacteristic)
+        .onSet(this.setOn.bind(this))
+        .onGet(this.getOn.bind(this));
     } else {
-      this.platform.log.info('Setting service type to: Switch');
-      this.serviceType = this.platform.Service.Switch;
-      this.serviceCharacteristic = this.platform.Characteristic.On;
-      this.serviceCharacteristicOffValue = false;
-      this.serviceCharacteristicOnValue = true;
+      this.binaryService = new platform.Service.Switch(this.name);
+      this.binaryCharacteristic = this.platform.Characteristic.On;
+
+      // register handlers for the characteristics
+      this.binaryService
+        .getCharacteristic(this.binaryCharacteristic)
+        .onGet(this.getOn.bind(this));
     }
 
-    // get the service if it exists, otherwise create a new service
-    this.service = this.accessory.getService(this.serviceType) || this.accessory.addService(this.serviceType);
-
-    // default the state to off
-    this.service.updateCharacteristic(this.serviceCharacteristic, this.serviceCharacteristicOffValue);
-
-    // set the service name, this is what is displayed as the default name on the Home app
-    // in this example we are using the name we stored in the `accessory.context` in the `discoverDevices` method.
-    this.service.setCharacteristic(this.platform.Characteristic.Name, accessory.context.device.name);
-
-    // set the displayName
-    this.service.displayName = accessory.context.device.name;
-
-    this.service.getCharacteristic(this.serviceCharacteristic)
-      .on(CharacteristicEventTypes.SET, (value: CharacteristicValue, callback: CharacteristicSetCallback) => {
-        this.states.On = value as boolean;
-        this.platform.log.info(`[${ this.service.displayName }] state was set to: ` + (this.states.On? 'On': 'Off'));
-        this.platform.log.info(`[${ this.service.displayName }] forcing refresh of state in one second due to manual state change`);
-        managedLoop.restart({ interval: 1000 });
-        callback();
-      });
-
-    // update the device state on a timer (will get called right away as well)
-    const managedLoop = new IntervalLoopManager(() => {
+    // Update the device state on a timer (will get called right away as well)
+    this.managedLoop = new IntervalLoopManager(() => {
       this.updateState();
-
-      if (this.states.On) {
-        managedLoop.assignValues({ interval: this.intervalRunning });
-      } else {
-        managedLoop.assignValues({ interval: this.intervalStopped });
-      }
-    });
-    managedLoop.start({ interval: this.intervalRunning });
+      // HACK to fix issue https://github.com/ablyler/homebridge-smartdry/issues/5
+      // calling this function within the callback causes a crash
+      // this.managedLoop.assignValues({ interval: this.getLoopInterval() });
+    }).start({ interval: SmartDryConstants.INTERVAL_RUNNING_MS });
   }
 
-  private updateState() {
-    this.platform.log.debug(`[${ this.service.displayName }] Updating State`);
+  private getLoopInterval(): number {
+    return this.isOn ? SmartDryConstants.INTERVAL_RUNNING_MS : SmartDryConstants.INTERVAL_STOPPED_MS;
+  }
 
-    this.api.getDeviceState()
-      .then((state) => {
-        this.platform.log.debug(`[${ this.service.displayName }] state from api: ${ JSON.stringify(state) }`);
+  private async updateState() {
 
-        // push the new value to HomeKit
-        if (state.loadStart > BigInt(0)) {
-          if (!this.states.On) {
-            this.platform.log.info(`[${ this.service.displayName }] Setting state to: On`);
-          }
-          this.service.updateCharacteristic(this.serviceCharacteristic, this.serviceCharacteristicOnValue);
-          this.states.On = true;
-        } else {
-          if (this.states.On) {
-            this.platform.log.info(`[${ this.service.displayName }] Setting state to: Off`);
-          }
-          this.service.updateCharacteristic(this.serviceCharacteristic, this.serviceCharacteristicOffValue);
-          this.states.On = false;
-        }
+    this.platform.log.debug(`[${ this.name }] Updating State`);
 
-        this.platform.log.debug(`[${ this.service.displayName }] State Update Complete`);
-      })
-      .catch((err) => {
-        this.platform.log.error('Unable to load state from SmartDry API: ', err.message);
-      });
+    await this.platform.SmartDryApi.getDeviceState(this.id).then(deviceState => {
+      this.platform.log.debug(`[${ this.name }] state from api: ${ JSON.stringify(deviceState) }`);
+      if (deviceState.loadStart > BigInt(0)) {
+        this.isOn = !this.isOn;
+        this.platform.log.info(`Set [${this.name}] state ->`, this.isOn);
+
+        this.binaryService
+          .getCharacteristic(this.binaryCharacteristic)
+          .updateValue(this.isOn);
+      }
+
+      this.platform.log.debug(`[${ this.name }] State Update Complete`);
+    }).catch(err => {
+      this.platform.log.error('Unable to load state from SmartDry API: ', err.message);
+    });
+  }
+
+  private async setOn(value: CharacteristicValue): Promise<void> {
+
+    const boolValue = Boolean(value);
+    if (boolValue === (this.isOn || SmartDryConstants.DEFAULT_BINARY_STATE)) {
+      return;
+    }
+
+    this.isOn = boolValue;
+    this.platform.log.info(`Set [${this.name}] state ->`, this.isOn);
+    this.platform.log.info(`[${ this.name }] forcing refresh of state in one second due to manual state change`);
+
+    this.managedLoop.restart({ interval: SmartDryConstants.INTERVAL_RESTART_MS });
+  }
+
+  private async getOn(): Promise<CharacteristicValue> {
+
+    if (this.isOn !== undefined) {
+      this.platform.log.debug(`Get [${this.name}] state ->`, this.isOn);
+    }
+
+    return (this.isOn || SmartDryConstants.DEFAULT_BINARY_STATE);
+  }
+
+  getServices(): Service[] {
+    return [this.informationService, this.binaryService];
   }
 }
