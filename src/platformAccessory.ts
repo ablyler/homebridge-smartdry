@@ -37,7 +37,6 @@ export class SmartDryPlatformAccessory implements AccessoryPlugin {
       // register handlers for the characteristics
       this.binaryService
         .getCharacteristic(this.binaryCharacteristic)
-        .onSet(this.setOn.bind(this))
         .onGet(this.getOn.bind(this));
     } else {
       this.binaryService = new platform.Service.Switch(this.name);
@@ -46,6 +45,7 @@ export class SmartDryPlatformAccessory implements AccessoryPlugin {
       // register handlers for the characteristics
       this.binaryService
         .getCharacteristic(this.binaryCharacteristic)
+        .onSet(this.setOn.bind(this))
         .onGet(this.getOn.bind(this));
     }
 
@@ -99,14 +99,14 @@ export class SmartDryPlatformAccessory implements AccessoryPlugin {
   private async setOn(value: CharacteristicValue): Promise<void> {
 
     const boolValue = Boolean(value);
-    if (boolValue === (this.isOn || SmartDryConstants.DEFAULT_BINARY_STATE)) {
+    if (boolValue === (this.isOn === undefined ? SmartDryConstants.DEFAULT_BINARY_STATE : this.isOn)) {
       return;
     }
 
     this.isOn = boolValue;
     this.platform.log.info(`Set [${this.name}] state ->`, this.isOn);
-    this.platform.log.info(`[${ this.name }] forcing refresh of state in one second due to manual state change`);
 
+    this.platform.log.info(`[${ this.name }] forcing refresh of state in one second due to manual state change`);
     this.managedLoop.restart({ interval: SmartDryConstants.INTERVAL_RESTART_MS });
   }
 
@@ -114,9 +114,10 @@ export class SmartDryPlatformAccessory implements AccessoryPlugin {
 
     if (this.isOn !== undefined) {
       this.platform.log.debug(`Get [${this.name}] state ->`, this.isOn);
+      return this.isOn;
     }
 
-    return (this.isOn || SmartDryConstants.DEFAULT_BINARY_STATE);
+    return SmartDryConstants.DEFAULT_BINARY_STATE;
   }
 
   getServices(): Service[] {
