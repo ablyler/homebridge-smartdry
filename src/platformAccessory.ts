@@ -89,6 +89,11 @@ export class SmartDryPlatformAccessory implements AccessoryPlugin {
     }).catch(err => {
       this.platform.log.error('Unable to load state from SmartDry API: ', err.message);
     });
+
+    // const loopInterval = this.getLoopInterval();
+    // this.managedLoop.assignValues({ interval: this.getLoopInterval() });
+    // this.managedLoop.
+    // this.platform.log.debug(`[${this.name}] loop interval set to ${this.managedLoop.}ms`);
   }
 
   private async setOn(value: CharacteristicValue): Promise<void> {
